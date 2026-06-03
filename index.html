@@ -1196,6 +1196,50 @@
             alert("تم إيقاف عرض بنر الخصومات.");
         }
     </script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js">
+    </script>
+    // 1. إعداد الاتصال (ضع بيانات مشروعك هنا بعد إنشائه في Firebase Console)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js";
+
+const firebaseConfig = { /* بيانات مشروعك من Firebase */ };
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// 2. دالة حفظ الرأي في الداتا بيس بدلاً من المصفوفة
+async function saveReviewToDB(name, text) {
+    try {
+        await addDoc(collection(db, "reviews"), {
+            name: name,
+            text: text,
+            createdAt: new Date()
+        });
+        alert("تم إرسال رأيك بنجاح!");
+    } catch (e) { console.error("خطأ:", e); }
+}
+
+// 3. دالة جلب الآراء لحظياً لكل الزوار (توضع عند تحميل الصفحة)
+onSnapshot(query(collection(db, "reviews"), orderBy("createdAt", "desc")), (snapshot) => {
+    const reviewsList = [];
+    snapshot.forEach((doc) => {
+        reviewsList.push(doc.data());
+    });
+    // هنا تقوم بتحديث واجهة الموقع باستخدام البيانات الجديدة
+    renderReviewsUI(reviewsList); 
+});
+
+// 4. كود شفرة الأدمن للدردشة (حماية الرسائل)
+function checkAdminCode() {
+    const code = prompt("أدخل شفرة الأدمن:");
+    if (code === "20052005") { // الشفرة التي تستخدمها حالياً في كودك
+        document.getElementById("adminChatSection").style.display = 'block';
+        // جلب الرسائل من الداتا بيس
+        onSnapshot(collection(db, "messages"), (snapshot) => {
+            snapshot.forEach(doc => console.log(doc.data()));
+        });
+    } else {
+        alert("شفرة خاطئة!");
+    }
+}
 </body>
 </html>
