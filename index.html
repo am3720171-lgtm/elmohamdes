@@ -1291,6 +1291,164 @@
             document.getElementById('adminDiscountInput').value = "";
             alert("تم إيقاف عرض بنر الخصومات.");
         }
+        // 1. استيراد حزم الفايربيس الأساسية من الـ CDN
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, push, set, onChildAdded, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+// 2. إعدادات الفايربيس الخاصة بمشروعك (استبدلها ببيانات مشروعك من لوحة التحكم)
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
+
+// 3. تهيئة الفايربيس والداتا بيس
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// -------------------------------------------------------------
+// [أ] كود حفظ آراء العملاء (Reviews)
+// -------------------------------------------------------------
+function addNewReview() {
+    const nameInput = document.getElementById('revName'); 
+    const textInput = document.getElementById('revText');
+    
+    if(!nameInput || !textInput || nameInput.value.trim() === "" || textInput.value.trim() === "") { 
+        alert("برجاء كتابة الاسم والمنطقة والتقييم أولاً يا فندم!"); 
+        return; 
+    }
+
+    // تجهيز بيانات التقييم
+    const reviewData = {
+        name: nameInput.value.trim(),
+        text: textInput.value.trim(),
+        badge: "none",
+        timestamp: Date.now()
+    };
+
+    // دفع (Push) البيانات إلى فرع "reviews" في الفايربيس
+    const reviewsRef = ref(db, 'reviews');
+    push(reviewsRef, reviewData)
+    .then(() => {
+        alert("تم نشر رأيك بنجاح وحفظه في قاعدة البيانات!");
+        nameInput.value = ""; 
+        textInput.value = "";
+    })
+    .catch((error) => console.error("خطأ في حفظ التقييم: ", error));
+}
+// جعل الدالة متاحة للزر في الـ HTML
+window.addNewReview = addNewReview;
+
+// الاستماع الفوري لجلب الآراء وعرضها بالموقع تلقائياً عند إضافة أي رأي جديد
+const reviewsRef = ref(db, 'reviews');
+onValue(reviewsRef, (snapshot) => {
+    const container = document.getElementById('reviewsContainer');
+    if (!container) return;
+    container.innerHTML = ""; // تفريغ الحاوية قبل إعادة الرسم
+    
+    snapshot.forEach((childSnapshot) => {
+        const rev = childSnapshot.val();
+        let badgeHtml = "";
+        if(rev.badge === 'vip') badgeHtml = `<span class="user-badge badge-vip"><i class="fa-solid fa-crown"></i> عميل VIP</span>`;
+        else if(rev.badge === 'premium') badgeHtml = `<span class="user-badge badge-premium"><i class="fa-solid fa-star"></i> عميل مميز</span>`;
+        else if(rev.badge === 'verified') badgeHtml = `<span class="user-badge badge-verified"><i class="fa-solid fa-circle-check"></i> موثق</span>`;
+
+        const card = document.createElement('div');
+        card.className = 'testi-card';
+        card.innerHTML = `
+            <div class="testi-head">
+                <div class="testi-avatar"><i class="fa-solid fa-user"></i></div>
+                <div>
+                    <h4 style="margin:0; color:#fff;">${rev.name}</h4>
+                    <div class="stars-gold"><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i></div>
+                </div>
+                ${badgeHtml}
+            </div>
+            <p style="color: #cbd5e1; font-size: 15px; margin:0;">"${rev.text}"</p>
+        `;
+        container.prepend(card); // إظهار الأحدث أولاً
+    });
+});
+
+// -------------------------------------------------------------
+// [ب] كود حفظ وإرسال الدردشات (Chats)
+// -------------------------------------------------------------
+function sendChatMessage() {
+    const input = document.getElementById('chatUserInput');
+    const container = document.getElementById('chatBodyContainer');
+    if (!input || input.value.trim() === "" || !container) return;
+
+    const userText = input.value.trim();
+    let timeString = new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'});
+
+    // حفظ رسالة المستخدم في الفايربيس تحت فرع "chats"
+    const chatsRef = ref(db, 'chats');
+    push(chatsRef, {
+        sender: "user",
+        text: userText,
+        time: timeString,
+        timestamp: Date.now()
+    });
+
+    input.value = "";
+
+    // رد البوت التلقائي وحفظه أيضاً بالداتا بيس
+    setTimeout(() => {
+        push(chatsRef, {
+            sender: "bot",
+            text: `تسلم يا فندم، تم تسجيل مشكلتك بقسم الدعم 🛠️ (${userText}). لسرعة الحجز اتصل بنا أو تواصل واتساب!`,
+            time: timeString,
+            timestamp: Date.now()
+        });
+    }, 1000);
+}
+window.sendChatMessage = sendChatMessage;
+
+// الاستماع للرسائل الجديدة لعرضها فوراً في نافذة شات المستخدم
+const chatsRef = ref(db, 'chats');
+onChildAdded(chatsRef, (snapshot) => {
+    const msg = snapshot.val();
+    const container = document.getElementById('chatBodyContainer');
+    if (!container) return;
+
+    const bubble = document.createElement('div');
+    bubble.className = msg.sender === 'user' ? 'chat-bubble bubble-user' : 'chat-bubble bubble-bot';
+    bubble.textContent = msg.text;
+    
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+});
+
+// -------------------------------------------------------------
+// [ج] كود التحكم في قفل وفتح الصوت (Audio Control) عبر الداتا بيس
+// -------------------------------------------------------------
+// عند تغيير مفتاح الصوت من لوحة الأدمن، يتم التحديث في الفايربيس فوراً
+function toggleMusicControl(toggle) {
+    set(ref(db, 'settings/isMusicEnabled'), toggle.checked);
+}
+window.toggleMusicControl = toggleMusicControl;
+
+// استماع حي لحالة الصوت: إذا قام الأدمن بقفله أوفتحه يتأثر الزائر فوراً بدون تحديث الصفحة
+const musicSettingsRef = ref(db, 'settings/isMusicEnabled');
+onValue(musicSettingsRef, (snapshot) => {
+    const isEnabled = snapshot.val();
+    const player = document.getElementById('site-audio-player');
+    const musicSwitch = document.getElementById('adminMusicSwitch');
+
+    if (musicSwitch) musicSwitch.checked = isEnabled;
+
+    if (player) {
+        if (isEnabled) {
+            player.play().catch(() => console.log("بانتظار تفاعل المستخدم لتشغيل الصوت"));
+        } else {
+            player.pause();
+        }
+    }
+});
     </script>
 </body>
 </html>
